@@ -122,7 +122,8 @@ class OpenAIFetcher(BaseFetcher):
                 total_cost = 0.0
                 for result in bucket.get("results", []):
                     amount = result.get("amount", {})
-                    total_cost += amount.get("value", 0.0)
+                    # OpenAI returns the value as a string, so cast to float
+                    total_cost += float(amount.get("value", 0))
 
                 costs_by_date[bucket_date] = {"cost_usd": total_cost}
 
