@@ -15,10 +15,29 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import date
 import atexit
 
+import requests
+
 from config import Config
 from database import init_db, upsert_usage
 from routes.api import api_bp, _get_all_fetchers, _check_alerts
 from routes.dashboard import dashboard_bp
+
+# Friendly error messages for common HTTP errors, by provider
+_KEY_HELP = {
+    "openai": {
+        403: "Needs an Admin API key (not a regular key). "
+             "Create one at: platform.openai.com > Settings > Organization > Admin API keys",
+        401: "API key is invalid or expired.",
+    },
+    "anthropic": {
+        401: "Needs an Admin API key (starts with sk-ant-admin...). "
+             "Create one at: console.anthropic.com > Settings > Admin API keys",
+        403: "API key lacks admin permissions.",
+    },
+    "openrouter": {
+        401: "API key is invalid.",
+    },
+}
 
 
 def create_app():
@@ -58,6 +77,14 @@ def scheduled_fetch():
                     raw_data=record["raw_data"],
                 )
             print(f"  [{fetcher.provider_name}] Updated {len(records)} records")
+        except requests.exceptions.HTTPError as e:
+            # Show a helpful hint instead of a raw HTTP error
+            status_code = e.response.status_code if e.response is not None else None
+            hint = _KEY_HELP.get(fetcher.provider_name, {}).get(status_code)
+            if hint:
+                print(f"  [{fetcher.provider_name}] {hint}")
+            else:
+                print(f"  [{fetcher.provider_name}] HTTP {status_code}: {e}")
         except Exception as e:
             print(f"  [{fetcher.provider_name}] Error: {e}")
 
